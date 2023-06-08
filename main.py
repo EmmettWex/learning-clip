@@ -1,35 +1,58 @@
-import glob
 import torch
 import torchvision
-import math
-import time
+# import math
+# import time
+import glob
 from annoy import AnnoyIndex
 from PIL import Image
-from sentence_transformers import SentenceTransformer
+from transformers import CLIPProcessor, CLIPModel, AutoTokenizer
+from clip_retrieval.clip_client import ClipClient, Modality
 
-image_model = SentenceTransformer('clip-ViT-B-32')
+# client = ClipClient(url="https://knn.laion.ai/knn-service", indice_name="laion5B-H-14")
 
-images = []
-image_paths = glob.glob('dataset/*_normals.png')
+## creating the trees here
+# model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+# processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
-for path in image_paths:
-    image = Image.open(path)
-    images.append(image)
+# images = []
+image_paths = glob.glob('dataset/*_rgb.png')
+# cat_results = client.query(image='dataset/4937_rgb.png')
+# print(cat_results)
+# print(image_paths)
 
-embeddings = image_model.encode(images)
+# for path in image_paths:
+#     image = Image.open(path)
+#     images.append(image)
 
-COUNT = embeddings.shape[0]
-LENGTH = embeddings.shape[1]
+# inputs = processor(images=images, return_tensors="pt", padding=True)
 
-trees = 72
+# with torch.no_grad():
+#     embeddings = model.get_image_features(**inputs)
+    
+# print(embeddings.shape)
 
-annoy_tree = AnnoyIndex(512, 'euclidean')
-for idx, image in enumerate(embeddings):
-    annoy_tree.add_item(idx, image)
+# trees = 72
 
-annoy_tree.build(trees)
-annoy_tree.save('images.ann')
+# annoy_tree = AnnoyIndex(512, 'euclidean')
+# for idx, image in enumerate(embeddings):
+#     annoy_tree.add_item(idx, image)
+
+# annoy_tree.build(trees)
+# annoy_tree.save('images.ann')
+
+## query code below:
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+
+text_query = "a rendering of a steering wheel"
+
+input = tokenizer([text_query], padding=True, return_tensors="pt")
+with torch.no_grad():
+    vector = model.get_text_features(**input)
+print(vector.shape)
 
 query = AnnoyIndex(512, 'euclidean')
 query.load('images.ann')
-print(query.get_nns_by_item(0, 5, search_k=1000))
+indexes = query.get_nns_by_vector(vector[0], 2, search_k=-1)
+results = [image_paths[i] for i in indexes]
+print(results)
